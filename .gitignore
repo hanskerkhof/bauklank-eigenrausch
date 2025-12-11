@@ -1,3 +1,42 @@
+# project specific
+/eigenrausch/eigenrausch_base/
+/eigenrausch/eigenrausch_micro/
+/eigenrausch/eigenrausch_pulse/
+
+# -------------------------
+# JetBrains / PyCharm
+# -------------------------
+.idea/
+*.iml
+
+# User-specific PyCharm settings
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/shelf/
+
+# File-based project format
+*.iws
+
+# Generated content
+.idea/modules.xml
+.idea/*.iml
+.idea/vcs.xml
+
+# Data Sources plugin
+.idea/dataSources/
+.idea/dataSources.local.xml
+
+# Editor-based HTTP client
+.idea/httpRequests/
+
+# Local history
+.idea/localHistory/
+
+# PyCharm extra
+# (appears when using Poetry or other env integrations)
+.idea/pythonExternalLibraries/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -205,3 +244,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
