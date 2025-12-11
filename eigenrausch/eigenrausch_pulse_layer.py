@@ -22,6 +22,7 @@ from eigenrausch_config import (
     DURATION_SEC,
     OUTPUT_DIR_PULSE,
     PULSE_OUT_DB,
+    PULSE_TRIM_DB,
     db_to_amp,
 )
 
@@ -128,14 +129,100 @@ PULSE_VARIANTS = {
 # PULSE EIGENRAUSCH VOICE
 # =========================================================
 
+# class EigenPulse:
+#     """
+#     Exaggerated Pulse layer for Eigenrausch.
+#
+#     Now produces:
+#     - clearly audible, frequent bursts
+#     - more contrast between pulses and noise bed
+#     - wider-band clicks (less tonal, more transient)
+#     """
+#
+#     def __init__(
+#         self,
+#         server: Server,
+#         freq_min_hz: float = 1500.0,
+#         freq_max_hz: float = 4500.0,
+#         # These defaults are overridden by PULSE_VARIANTS, but they document the "typical" region.
+#         pulse_rate_min: float = 1.5,    # was 0.05…0.2 — now MUCH faster
+#         pulse_rate_max: float = 4.0,    # 1.5–4 pulses per second (random)
+#         noise_db: float = -60.0,        # make bed quieter → pulses stand out more
+#         pulse_db: float = -10.0,        # was around -20 dB — raise pulse volume
+#         out_db: float = PULSE_OUT_DB,
+#     ):
+#         self.server = server
+#
+#         # 1) Very quiet base noise bed
+#         #    Lower (more negative) noise_db → quieter bed → more contrast.
+#         self.noise_bed = PinkNoise() * db_to_amp(noise_db)
+#
+#         # 2) Pulse noise source (raw, full-band pink noise).
+#         self.pulse_noise = PinkNoise()
+#
+#         # 3) Frequency drift of the resonant filter — slowish color change over time.
+#         #    Higher freq -> more movement in timbre; lower -> more static.
+#         self.freq_lfo = Randi(
+#             min=freq_min_hz,
+#             max=freq_max_hz,
+#             freq=0.05,   # Hz – how fast the center frequency slides between min/max
+#         )
+#
+#         # 4) Wider band-pass = less tonal, more “burst-like” noise.
+#         #    Lower Q → wider band, more "noisy"; higher Q → narrower, more "pitched".
+#         self.band = ButBP(
+#             self.pulse_noise,
+#             freq=self.freq_lfo,
+#             q=1.2,      # was q=5 — narrow → tonal. Lower Q → noisy, punchy.
+#         )
+#
+#         # 5) Pulse-rate control:
+#         #    Random frequency between pulse_rate_min and pulse_rate_max (in Hz).
+#         #    This is how OFTEN the amplitude jumps (i.e. how many pulses per second).
+#         self.pulse_rate = Randi(
+#             min=pulse_rate_min,
+#             max=pulse_rate_max,
+#             freq=0.5,    # how fast the *rate* itself morphs over time
+#         )
+#
+#         # 6) Amplitude LFO — random steps between 0 and 1, at pulse_rate frequency.
+#         #    Each step effectively becomes one "pulse".
+#         self.amp_lfo = Randi(
+#             min=0.0,
+#             max=1.0,
+#             freq=self.pulse_rate,
+#         )
+#
+#         # 7) SHAPE the amplitude spikes to make them more “spiky”:
+#         #    amp^3 exaggerates the top of each pulse:
+#         #      - small values (0–0.5) become even smaller
+#         #      - high values (0.8–1.0) stay relatively high
+#         #    → fewer medium loud pulses, more clearly separated "hits".
+#         shaped_amp = self.amp_lfo ** 3
+#
+#         # 8) Convert pulse + layer volume to linear multipliers.
+#         #    pulse_db   controls loudness of the pulse content itself.
+#         #    out_db     is the overall trim for the whole PULSE layer (from config).
+#         pulse_amp = db_to_amp(pulse_db)
+#
+#         # Master layer gain (pulse) = out_db + empirical trim.
+#         layer_amp = db_to_amp(out_db + PULSE_TRIM_DB)
+#
+#         # 9) Pulse signal = bandpassed noise * shaped amplitude envelope * gains.
+#         self.pulse_sig = self.band * shaped_amp * pulse_amp * layer_amp
+#
+#         # 10) Final mix = quiet bed + pulse bursts.
+#         self.out_sig = self.noise_bed + self.pulse_sig
 class EigenPulse:
     """
     Exaggerated Pulse layer for Eigenrausch.
 
-    Now produces:
-    - clearly audible, frequent bursts
-    - more contrast between pulses and noise bed
-    - wider-band clicks (less tonal, more transient)
+    Concept:
+    - Very quiet noise bed (relative level set by noise_db).
+    - Band-limited noise bursts ("pulses") whose level is set by pulse_db.
+    - All internal levels are defined relative to 0 dBFS.
+    - A single master gain (out_db + PULSE_TRIM_DB) is applied at the end
+      to normalize the whole PULSE stem.
     """
 
     def __init__(
@@ -144,15 +231,15 @@ class EigenPulse:
         freq_min_hz: float = 1500.0,
         freq_max_hz: float = 4500.0,
         # These defaults are overridden by PULSE_VARIANTS, but they document the "typical" region.
-        pulse_rate_min: float = 1.5,    # was 0.05…0.2 — now MUCH faster
-        pulse_rate_max: float = 4.0,    # 1.5–4 pulses per second (random)
-        noise_db: float = -60.0,        # make bed quieter → pulses stand out more
-        pulse_db: float = -10.0,        # was around -20 dB — raise pulse volume
+        pulse_rate_min: float = 1.5,    # pulses per second (min)
+        pulse_rate_max: float = 4.0,    # pulses per second (max)
+        noise_db: float = -60.0,        # bed level, relative to 0 dBFS
+        pulse_db: float = -10.0,        # pulse level, relative to 0 dBFS
         out_db: float = PULSE_OUT_DB,
     ):
         self.server = server
 
-        # 1) Very quiet base noise bed
+        # 1) Very quiet base noise bed (relative to 0 dBFS).
         #    Lower (more negative) noise_db → quieter bed → more contrast.
         self.noise_bed = PinkNoise() * db_to_amp(noise_db)
 
@@ -160,24 +247,23 @@ class EigenPulse:
         self.pulse_noise = PinkNoise()
 
         # 3) Frequency drift of the resonant filter — slowish color change over time.
-        #    Higher freq -> more movement in timbre; lower -> more static.
         self.freq_lfo = Randi(
             min=freq_min_hz,
             max=freq_max_hz,
             freq=0.05,   # Hz – how fast the center frequency slides between min/max
         )
 
-        # 4) Wider band-pass = less tonal, more “burst-like” noise.
+        # 4) Band-pass filter.
         #    Lower Q → wider band, more "noisy"; higher Q → narrower, more "pitched".
         self.band = ButBP(
             self.pulse_noise,
             freq=self.freq_lfo,
-            q=1.2,      # was q=5 — narrow → tonal. Lower Q → noisy, punchy.
+            q=1.2,      # fairly wide for noisy, burst-like character
         )
 
         # 5) Pulse-rate control:
         #    Random frequency between pulse_rate_min and pulse_rate_max (in Hz).
-        #    This is how OFTEN the amplitude jumps (i.e. how many pulses per second).
+        #    This is how OFTEN the amplitude jumps (pulses per second).
         self.pulse_rate = Randi(
             min=pulse_rate_min,
             max=pulse_rate_max,
@@ -185,31 +271,31 @@ class EigenPulse:
         )
 
         # 6) Amplitude LFO — random steps between 0 and 1, at pulse_rate frequency.
-        #    Each step effectively becomes one "pulse".
         self.amp_lfo = Randi(
             min=0.0,
             max=1.0,
             freq=self.pulse_rate,
         )
 
-        # 7) SHAPE the amplitude spikes to make them more “spiky”:
-        #    amp^3 exaggerates the top of each pulse:
-        #      - small values (0–0.5) become even smaller
-        #      - high values (0.8–1.0) stay relatively high
-        #    → fewer medium loud pulses, more clearly separated "hits".
+        # 7) Shape the amplitude spikes to make them more “spiky”.
+        #    amp^3 exaggerates peaks and suppresses medium/low values.
         shaped_amp = self.amp_lfo ** 3
 
-        # 8) Convert pulse + layer volume to linear multipliers.
-        #    pulse_db   controls loudness of the pulse content itself.
-        #    out_db     is the overall trim for the whole PULSE layer (from config).
+        # 8) Pulse amplitude relative to 0 dBFS.
         pulse_amp = db_to_amp(pulse_db)
-        layer_amp = db_to_amp(out_db)
 
-        # 9) Pulse signal = bandpassed noise * shaped amplitude envelope * gains.
-        self.pulse_sig = self.band * shaped_amp * pulse_amp * layer_amp
+        # 9) Pulse signal (still relative to 0 dBFS at this point).
+        pulse_sig = self.band * shaped_amp * pulse_amp
 
-        # 10) Final mix = quiet bed + pulse bursts.
-        self.out_sig = self.noise_bed + self.pulse_sig
+        # 10) Pre-mix: noise bed + pulses, both expressed relative to 0 dBFS.
+        premix = self.noise_bed + pulse_sig
+
+        # 11) Single master gain for the entire PULSE stem:
+        #     out_db is the config level, PULSE_TRIM_DB is empirical normalization.
+        layer_amp = db_to_amp(out_db + PULSE_TRIM_DB)
+
+        # 12) Final signal.
+        self.out_sig = premix * layer_amp
 
     def out(self):
         """Start sending the signal to the audio output."""

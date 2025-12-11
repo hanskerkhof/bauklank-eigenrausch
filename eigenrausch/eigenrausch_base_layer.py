@@ -23,6 +23,7 @@ from eigenrausch_config import (
     DURATION_SEC,
     OUTPUT_DIR_BASE,
     BASE_OUT_DB,
+    BASE_TRIM_DB,
     db_to_amp,
 )
 
@@ -65,6 +66,7 @@ from eigenrausch_config import (
 #         "amp_lfo_period_sec": 3.5 * 60.0,
 #     },
 # }
+
 BASE_VARIANTS = {
     # A: Strong, clear movement – fast drift + pronounced breathing
     "BASE_A": {
@@ -117,6 +119,62 @@ BASE_VARIANTS = {
 # BASE EIGENRAUSCH SYNTH VOICE
 # =========================================================
 
+# class EigenBase:
+#     """
+#     One "base" Eigenrausch voice.
+#
+#     Concept:
+#     - Start with pink noise (similar to 1/f noise, soft and ear-friendly).
+#     - Run it through a bandpass filter centered around some mid frequency.
+#     - Slowly drift the filter center frequency over time (eigengrau shimmer).
+#     - Add a very slow amplitude LFO ("breathing" of the noise field).
+#     """
+#
+#     def __init__(
+#         self,
+#         server: Server,
+#         center_freq_hz: float = 2800.0,
+#         drift_depth_hz: float = 300.0,
+#         drift_period_sec: float = 5 * 60.0,
+#         amp_lfo_depth: float = 0.2,
+#         amp_lfo_period_sec: float = 3 * 60.0,
+#         out_db: float = BASE_OUT_DB,
+#     ):
+#         self.server = server
+#
+#         # Base noise source.
+#         self.noise = PinkNoise()
+#
+#         # Frequency drift LFO (very slow).
+#         self.freq_lfo = Sine(
+#             freq=1.0 / drift_period_sec
+#         ).range(
+#             center_freq_hz - drift_depth_hz,
+#             center_freq_hz + drift_depth_hz,
+#         )
+#
+#         # Band-pass filter with slowly moving center frequency.
+#         self.filter = ButBP(
+#             self.noise,
+#             freq=self.freq_lfo,
+#             q=2.0,  # fairly wide band
+#         )
+#
+#         # Amplitude LFO (breathing).
+#         self.amp_lfo = Sine(
+#             freq=1.0 / amp_lfo_period_sec
+#         ).range(
+#             1.0 - amp_lfo_depth,
+#             1.0 + amp_lfo_depth,
+#         )
+#
+#         # Convert master dBFS level + empirical trim to linear factor.
+#         # out_db is the "design" level; BASE_TRIM_DB is the normalization fudge
+#         # to push BASE_* renders closer to ~ -1 dBFS.
+#         self.base_amp = db_to_amp(out_db + BASE_TRIM_DB)
+#
+#         # Final signal.
+#         self.out_sig = self.filter * self.base_amp * self.amp_lfo
 class EigenBase:
     """
     One "base" Eigenrausch voice.
@@ -126,6 +184,12 @@ class EigenBase:
     - Run it through a bandpass filter centered around some mid frequency.
     - Slowly drift the filter center frequency over time (eigengrau shimmer).
     - Add a very slow amplitude LFO ("breathing" of the noise field).
+
+    Gain structure:
+    - Internally, the signal is treated as relative to 0 dBFS.
+    - The final stem level is set by a single master gain:
+        out_db (from config) + BASE_TRIM_DB (empirical normalization),
+      applied at the very end to the whole BASE layer.
     """
 
     def __init__(
@@ -140,10 +204,10 @@ class EigenBase:
     ):
         self.server = server
 
-        # Base noise source.
+        # 1) Base noise source, full-scale pink noise (relative to 0 dBFS).
         self.noise = PinkNoise()
 
-        # Frequency drift LFO (very slow).
+        # 2) Frequency drift LFO (very slow).
         self.freq_lfo = Sine(
             freq=1.0 / drift_period_sec
         ).range(
@@ -151,14 +215,16 @@ class EigenBase:
             center_freq_hz + drift_depth_hz,
         )
 
-        # Band-pass filter with slowly moving center frequency.
+        # 3) Band-pass filter with slowly moving center frequency.
+        #    Q controls the bandwidth; higher Q = narrower band.
         self.filter = ButBP(
             self.noise,
             freq=self.freq_lfo,
             q=2.0,  # fairly wide band
         )
 
-        # Amplitude LFO (breathing).
+        # 4) Amplitude LFO (breathing) in linear gain domain.
+        #    amp_lfo_depth = ±percentage variation around 1.0.
         self.amp_lfo = Sine(
             freq=1.0 / amp_lfo_period_sec
         ).range(
@@ -166,17 +232,23 @@ class EigenBase:
             1.0 + amp_lfo_depth,
         )
 
-        # Convert master dBFS level to linear factor.
-        self.base_amp = db_to_amp(out_db)
+        # 5) Pre-mix: filtered pink noise with slow amplitude breathing.
+        #    At this stage, everything is still relative to 0 dBFS.
+        premix = self.filter * self.amp_lfo
 
-        # Final signal.
-        self.out_sig = self.filter * self.base_amp * self.amp_lfo
+        # 6) Single master gain for the entire BASE stem:
+        #    - out_db  = design level from config (BASE_OUT_DB)
+        #    - BASE_TRIM_DB = empirical normalization to push BASE_*
+        #      towards the desired peak (e.g. ~ -1 dBFS after render).
+        layer_amp = db_to_amp(out_db + BASE_TRIM_DB)
+
+        # 7) Final signal.
+        self.out_sig = premix * layer_amp
 
     def out(self):
         """Start sending the signal to the audio output."""
         self.out_sig.out()
         return self
-
 
 # =========================================================
 # PREVIEW & RENDER HELPERS (BASE ONLY)
