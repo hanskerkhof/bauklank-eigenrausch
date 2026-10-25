@@ -17,9 +17,13 @@ SAMPLE_RATE = 48000          # Hz. 48000 is a good compromise.
 DURATION_MIN = float(os.environ.get("EIGENRAUSCH_DURATION_MIN", 0.05))
 DURATION_SEC = DURATION_MIN * 60
 
-# Output directories for rendered WAVs: <repo>/dist/EIGENRAUSCH/{BASE,MICRO,PULSE}.
+# Output directories for rendered WAVs: <repo>/dist/EIGENRAUSCH_WAV/{BASE,MICRO,PULSE}.
+# Encoded MP3s (see encode_mp3.py) go to <repo>/dist/EIGENRAUSCH/{BASE,MICRO,PULSE}.
 # Anchored to this file, so they do not depend on the directory you run from.
-DIST_DIR = Path(__file__).resolve().parent.parent / "dist" / "EIGENRAUSCH"
+DIST_ROOT = Path(__file__).resolve().parent.parent / "dist"
+DIST_DIR = DIST_ROOT / "EIGENRAUSCH_WAV"
+MP3_DIR = DIST_ROOT / "EIGENRAUSCH"
+MP3_BITRATE_KBPS = 192
 OUTPUT_DIR_BASE = DIST_DIR / "BASE"
 OUTPUT_DIR_MICRO = DIST_DIR / "MICRO"
 OUTPUT_DIR_PULSE = DIST_DIR / "PULSE"

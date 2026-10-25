@@ -9,16 +9,22 @@ Common tasks are available as npm scripts (run from the repository root):
 | Task | What it does |
 |---|---|
 | `npm run setup` | Creates `.venv` (Python 3.11) and installs `pyo` and `wxPython`. Needs `brew install portaudio libsndfile portmidi liblo` first. |
-| `npm run generate` | Renders every BASE, MICRO and PULSE variant to `dist/EIGENRAUSCH/`. |
+| `npm run generate` | Renders every BASE, MICRO and PULSE variant to WAV in `dist/EIGENRAUSCH_WAV/`, then encodes 192 kbps MP3s to `dist/EIGENRAUSCH/`. |
+| `npm run encode` | Re-encodes the MP3s from the existing WAVs without re-rendering (needs `ffmpeg`). |
 | `npm run list` | Lists all available variants. |
 | `npm run lab` | Opens the lab: live scope and spectrum windows for one variant per layer. |
 
 Rendered files end up in:
 
-    dist/EIGENRAUSCH/
-    ├── BASE/
-    ├── MICRO/
-    └── PULSE/
+    dist/
+    ├── EIGENRAUSCH_WAV/    # rendered WAVs
+    │   ├── BASE/
+    │   ├── MICRO/
+    │   └── PULSE/
+    └── EIGENRAUSCH/        # 192 kbps MP3s encoded from the WAVs
+        ├── BASE/
+        ├── MICRO/
+        └── PULSE/
 
 `dist/` is git-ignored, so rendered sounds are never committed.
 
