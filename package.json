@@ -1,0 +1,12 @@
+{
+  "name": "bauklank-eigenrausch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Task runner for the Eigenrausch sound generator. Rendered sounds go to dist/EIGENRAUSCH.",
+  "scripts": {
+    "setup": "python3.11 -m venv .venv && .venv/bin/pip install pyo wxPython",
+    "list": ".venv/bin/python eigenrausch/eigenrausch_pyo_main.py list",
+    "generate": "EIGENRAUSCH_DURATION_MIN=${EIGENRAUSCH_DURATION_MIN:-0.5} .venv/bin/python eigenrausch/eigenrausch_pyo_main.py render_all",
+    "lab": ".venv/bin/python eigenrausch/eigenrausch_lab_gui_2.py"
+  }
+}

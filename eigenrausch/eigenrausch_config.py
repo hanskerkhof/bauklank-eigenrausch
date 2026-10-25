@@ -4,6 +4,7 @@ eigenrausch_config.py
 Shared configuration for Eigenrausch layers.
 """
 
+import os
 from pathlib import Path
 
 # =========================================================
@@ -11,16 +12,20 @@ from pathlib import Path
 # =========================================================
 
 SAMPLE_RATE = 48000          # Hz. 48000 is a good compromise.
-DURATION_MIN = 0.05          # Length of rendered files in minutes (use small for tests).
+# Length of rendered files in minutes (use small for tests).
+# Override per run without editing this file: EIGENRAUSCH_DURATION_MIN=10 python ...
+DURATION_MIN = float(os.environ.get("EIGENRAUSCH_DURATION_MIN", 0.05))
 DURATION_SEC = DURATION_MIN * 60
 
-# Output directories for rendered WAVs.
-OUTPUT_DIR_BASE = Path("eigenrausch_base")
-OUTPUT_DIR_MICRO = Path("eigenrausch_micro")
-OUTPUT_DIR_PULSE = Path("eigenrausch_pulse")
+# Output directories for rendered WAVs: <repo>/dist/EIGENRAUSCH/{BASE,MICRO,PULSE}.
+# Anchored to this file, so they do not depend on the directory you run from.
+DIST_DIR = Path(__file__).resolve().parent.parent / "dist" / "EIGENRAUSCH"
+OUTPUT_DIR_BASE = DIST_DIR / "BASE"
+OUTPUT_DIR_MICRO = DIST_DIR / "MICRO"
+OUTPUT_DIR_PULSE = DIST_DIR / "PULSE"
 
 for directory in (OUTPUT_DIR_BASE, OUTPUT_DIR_MICRO, OUTPUT_DIR_PULSE):
-    directory.mkdir(exist_ok=True)
+    directory.mkdir(parents=True, exist_ok=True)
 
 # Master output levels in dBFS.
 # We want all layers (BASE, MICRO, PULSE) to render at the same nominal level.

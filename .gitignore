@@ -245,3 +245,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+
+# -------------------------
+# Node
+# -------------------------
+node_modules/
+
+# macOS
+.DS_Store
